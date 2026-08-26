@@ -118,22 +118,44 @@ std::vector<int> compute_color_match(
         rgb_to_lab(dc.Red(), dc.Green(), dc.Blue(),
                    designL, designA, designB);
 
-        const std::string& designType = design_data[i].m_type;
+        const std::string& designType    = design_data[i].m_type;
+        const std::string& designVendor  = design_data[i].m_vendor;
+        const std::string& designSubtype = design_data[i].m_subtype;
 
         float bestDist = std::numeric_limits<float>::max();
         int   bestIdx  = -1;
 
-        // Pass 1: same filament type
-        for (size_t j = 0; j < machineCount; ++j) {
-            if (is_none_filament(machine_data[j]))
-                continue;
-            if (machine_data[j].m_type != designType)
-                continue;
-            float dist = DeltaE00(designL, designA, designB,
-                                  machineLab[j].L, machineLab[j].a, machineLab[j].b);
-            if (dist < bestDist) {
-                bestDist = dist;
-                bestIdx  = static_cast<int>(j);
+        // Pass 1a: same vendor + subtype (in addition to type)
+        if (!designVendor.empty() || !designSubtype.empty()) {
+            for (size_t j = 0; j < machineCount; ++j) {
+                if (is_none_filament(machine_data[j]))
+                    continue;
+                if (machine_data[j].m_type != designType)
+                    continue;
+                if (machine_data[j].m_vendor != designVendor || machine_data[j].m_subtype != designSubtype)
+                    continue;
+                float dist = DeltaE00(designL, designA, designB,
+                                      machineLab[j].L, machineLab[j].a, machineLab[j].b);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestIdx  = static_cast<int>(j);
+                }
+            }
+        }
+
+        // Pass 1b (fallback): same filament type
+        if (bestIdx < 0) {
+            for (size_t j = 0; j < machineCount; ++j) {
+                if (is_none_filament(machine_data[j]))
+                    continue;
+                if (machine_data[j].m_type != designType)
+                    continue;
+                float dist = DeltaE00(designL, designA, designB,
+                                      machineLab[j].L, machineLab[j].a, machineLab[j].b);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestIdx  = static_cast<int>(j);
+                }
             }
         }
 

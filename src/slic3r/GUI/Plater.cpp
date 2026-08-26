@@ -658,8 +658,9 @@ std::string extract_base_filament_name(const std::string& full_name)
 // e.g. "Generic PA-CF @U1 0.4 nozzle".  Split by '@' to extract the
 // base name, trim, and compare exactly — so "Generic PA" does NOT
 // accidentally match "Generic PA-CF".
-Preset* resolve_filament_preset(PresetBundle* preset_bundle, 
-    const std::string& filament_name, const std::string& filament_type)
+Preset* resolve_filament_preset(PresetBundle* preset_bundle,
+    const std::string& filament_name, const std::string& filament_type,
+    const std::string& filament_vendor, const std::string& filament_subtype)
 {
     if (!preset_bundle || filament_name.empty())
         return nullptr;
@@ -669,8 +670,37 @@ Preset* resolve_filament_preset(PresetBundle* preset_bundle,
         return s;
     };
 
+    // Pass 0: exact vendor + type + subtype match (highest priority)
+    if (!filament_vendor.empty() || !filament_subtype.empty()) {
+        for (auto& preset : preset_bundle->filaments) {
+            if (!preset.is_compatible)
+                continue;
+
+            std::string type = preset.config.opt_string("filament_type", static_cast<unsigned int>(0));
+            std::string vendor = preset.config.opt_string("filament_vendor", static_cast<unsigned int>(0));
+
+            std::string name_no_at = preset.name;
+            size_t at_pos = name_no_at.find(" @");
+            if (at_pos != std::string::npos)
+                name_no_at = name_no_at.substr(0, at_pos);
+
+            std::string prefix = vendor + " " + type + " ";
+            std::string subtype;
+            if (!vendor.empty() && !type.empty() &&
+                name_no_at.compare(0, prefix.size(), prefix) == 0) {
+                subtype = name_no_at.substr(prefix.size());
+            }
+
+            if ((to_lower(vendor) == to_lower(filament_vendor)) &&
+                (to_lower(type) == to_lower(filament_type)) &&
+                (to_lower(subtype) == to_lower(filament_subtype))) {
+                return &preset;
+            }
+        }
+    }
+
     for (auto& preset : preset_bundle->filaments) {
-        if (!preset.is_compatible || !preset.is_system)
+        if (!preset.is_compatible)
             continue;
 
         std::string base = extract_base_filament_name(preset.name);
@@ -682,13 +712,13 @@ Preset* resolve_filament_preset(PresetBundle* preset_bundle,
     const std::string generic_prefix = "Generic ";
     std::string generic_base = generic_prefix + filament_type;
     for (auto& preset : preset_bundle->filaments) {
-        if (!preset.is_compatible || !preset.is_system)
+        if (!preset.is_compatible)
             continue;
 
         std::string base = extract_base_filament_name(preset.name);
         std::string type = preset.config.opt_string("filament_type", static_cast<unsigned int>(0));
 
-        if ((to_lower(type) == to_lower(filament_type)) && 
+        if ((to_lower(type) == to_lower(filament_type)) &&
                 (to_lower(base) == to_lower(generic_base))) {
             return &preset;
         }
@@ -711,12 +741,16 @@ void build_design_filament_list(PresetBundle* preset_bundle, std::vector<Filamen
         FilamentData fd;
         fd.m_index = i;
 
-        Preset* preset = preset_bundle->filaments.find_preset(filament_presets[i]);
+        std::string preset_name = Preset::remove_suffix_modified(filament_presets[i]);
+        Preset* preset = preset_bundle->filaments.find_preset(preset_name);
          if (preset) {
             fd.m_name = preset->label(false);
             const auto* type_opt = preset->config.option<ConfigOptionStrings>("filament_type");
             if (type_opt && !type_opt->values.empty())
                 fd.m_type = type_opt->values[0];
+            const auto* vendor_opt = preset->config.option<ConfigOptionStrings>("filament_vendor");
+            if (vendor_opt && !vendor_opt->values.empty())
+                fd.m_vendor = vendor_opt->values[0];
         } else {
             fd.m_name = extract_base_filament_name(filament_presets[i]);
         }
@@ -725,6 +759,19 @@ void build_design_filament_list(PresetBundle* preset_bundle, std::vector<Filamen
             const auto* type_opt = preset_bundle->project_config.option<ConfigOptionStrings>("filament_type");
             if (type_opt && i < type_opt->values.size())
                 fd.m_type = type_opt->values[i];
+        }
+
+        {
+            std::string name_no_at = fd.m_name;
+            size_t at_pos = name_no_at.find(" @");
+            if (at_pos != std::string::npos)
+                name_no_at = name_no_at.substr(0, at_pos);
+
+            std::string prefix = fd.m_vendor + " " + fd.m_type + " ";
+            if (!fd.m_vendor.empty() && !fd.m_type.empty() &&
+                name_no_at.compare(0, prefix.size(), prefix) == 0) {
+                fd.m_subtype = name_no_at.substr(prefix.size());
+            }
         }
 
         {
@@ -756,7 +803,9 @@ void build_machine_filament_list(PresetBundle* preset_bundle, std::vector<Filame
         fd.m_index = info.index;
         fd.m_name  = info.filament_info;
         fd.m_type  = info.filament_type;
-        
+        fd.m_vendor = info.vendor;
+        fd.m_subtype = info.sub_type;
+
         if (!info.color_info.empty() || !info.multiColors.empty()) {
             fd.m_color = FilamentColor::FromColors(info.multiColors, info.colorMode, info.color_info);
         }
@@ -9265,7 +9314,8 @@ void Sidebar::show_sync_filament_dialog()
         ConfigOptionInts*    cmo = preset_bundle->project_config.option<ConfigOptionInts>("filament_colour_mode");
 
         for (size_t i = 0; i < effective_size; ++i) {
-            Preset* matched = resolve_filament_preset(preset_bundle, syncedData[i].m_name, syncedData[i].m_type);
+            Preset* matched = resolve_filament_preset(preset_bundle, syncedData[i].m_name, syncedData[i].m_type,
+                syncedData[i].m_vendor, syncedData[i].m_subtype);
             if (matched) {
                 preset_bundle->set_filament_preset(i, matched->name);
             }

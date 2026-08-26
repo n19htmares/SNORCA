@@ -1435,6 +1435,15 @@ void PlaterPresetComboBox::update()
                     if (f.is_compatible)
                         return true;
 
+                // Fallback: match presets stored with the full @printer suffix that
+                // SNORCA's own save dialogs generate by default
+                // e.g. "CHCKX PLA Basic @Snapmaker U1 (0.4 nozzle)"
+                auto at_pos = f.name.find(" @");
+                if (at_pos != std::string::npos)
+                    if (f.name.substr(0, at_pos) == filament_name)
+                        if (f.is_compatible)
+                            return true;
+
                 return false;
             });
 
@@ -2005,6 +2014,15 @@ void TabPresetComboBox::update()
                 if (f.name == filament_name)
                     if (f.is_compatible)
                         return true;
+
+                // Fallback: match presets stored with the full @printer suffix that
+                // SNORCA's own save dialogs generate by default
+                // e.g. "CHCKX PLA Basic @Snapmaker U1 (0.4 nozzle)"
+                auto at_pos = f.name.find(" @");
+                if (at_pos != std::string::npos)
+                    if (f.name.substr(0, at_pos) == filament_name)
+                        if (f.is_compatible)
+                            return true;
 
                 return false;                
                 });
