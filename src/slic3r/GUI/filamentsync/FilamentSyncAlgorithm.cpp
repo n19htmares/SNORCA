@@ -1,8 +1,10 @@
 #include "FilamentSyncAlgorithm.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <limits>
+#include <string>
 
 namespace {
 
@@ -111,6 +113,17 @@ std::vector<int> compute_color_match(
                    machineLab[j].L, machineLab[j].a, machineLab[j].b);
     }
 
+    auto iequals = [](const std::string& a, const std::string& b) {
+        if (a.size() != b.size())
+            return false;
+        for (size_t k = 0; k < a.size(); ++k) {
+            if (std::tolower(static_cast<unsigned char>(a[k])) !=
+                std::tolower(static_cast<unsigned char>(b[k])))
+                return false;
+        }
+        return true;
+    };
+
     // For each design filament, find the perceptually closest machine filament
     for (size_t i = 0; i < designCount; ++i) {
         float designL, designA, designB;
@@ -118,20 +131,40 @@ std::vector<int> compute_color_match(
         rgb_to_lab(dc.Red(), dc.Green(), dc.Blue(),
                    designL, designA, designB);
 
-        float bestDist = std::numeric_limits<float>::max();
-        int   bestIdx  = -1;
-        for (size_t j = 0; j < machineCount; ++j) {
-            if (is_none_filament(machine_data[j]))
-                continue;
-            float dL   = designL - machineLab[j].L;
-            float dA   = designA - machineLab[j].a;
-            float dB   = designB - machineLab[j].b;
-            float dist = dL * dL + dA * dA + dB * dB; // squared Euclidean (avoids sqrt)
-            if (dist < bestDist) {
-                bestDist = dist;
-                bestIdx  = static_cast<int>(j);
+        auto closest_with = [&](int matchMode) -> int {
+            // matchMode: 2 = vendor+subtype+type, 1 = type only, 0 = any
+            float bestDist = std::numeric_limits<float>::max();
+            int   bestIdx  = -1;
+            for (size_t j = 0; j < machineCount; ++j) {
+                if (is_none_filament(machine_data[j]))
+                    continue;
+                if (matchMode >= 1 && !iequals(machine_data[j].m_type, design_data[i].m_type))
+                    continue;
+                if (matchMode >= 2 &&
+                    (!iequals(machine_data[j].m_vendor, design_data[i].m_vendor) ||
+                     !iequals(machine_data[j].m_subtype, design_data[i].m_subtype)))
+                    continue;
+                float dL   = designL - machineLab[j].L;
+                float dA   = designA - machineLab[j].a;
+                float dB   = designB - machineLab[j].b;
+                float dist = dL * dL + dA * dA + dB * dB; // squared Euclidean (avoids sqrt)
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestIdx  = static_cast<int>(j);
+                }
             }
-        }
+            return bestIdx;
+        };
+
+        // Pass 0: vendor + subtype + type must match, color distance as tiebreaker.
+        int bestIdx = closest_with(2);
+        // Pass 1: fall back to type-only match.
+        if (bestIdx < 0)
+            bestIdx = closest_with(1);
+        // Pass 2: fall back to pure color distance.
+        if (bestIdx < 0)
+            bestIdx = closest_with(0);
+
         result[i] = bestIdx;
     }
 
