@@ -1429,7 +1429,7 @@ void PlaterPresetComboBox::update()
                 if (f.name == filament_name + " @U1 " + machine_nozzles + " nozzle")
                     if (f.is_compatible)
                         return true;
-                
+
                 if (f.name == filament_name + " @U1 " + machine_nozzles)
                     if (f.is_compatible)
                         return true;
@@ -1441,6 +1441,15 @@ void PlaterPresetComboBox::update()
                 if (f.name == filament_name)
                     if (f.is_compatible)
                         return true;
+
+                {
+                    std::string stripped = f.name;
+                    size_t at_pos = stripped.find(" @");
+                    if (at_pos != std::string::npos)
+                        stripped = stripped.substr(0, at_pos);
+                    if (stripped == filament_name && f.is_compatible)
+                        return true;
+                }
 
                 return false;
             });
@@ -2013,7 +2022,16 @@ void TabPresetComboBox::update()
                     if (f.is_compatible)
                         return true;
 
-                return false;                
+                {
+                    std::string stripped = f.name;
+                    size_t at_pos = stripped.find(" @");
+                    if (at_pos != std::string::npos)
+                        stripped = stripped.substr(0, at_pos);
+                    if (stripped == filament_name && f.is_compatible)
+                        return true;
+                }
+
+                return false;
                 });
 
             if (item_iter != filaments.end()) {
