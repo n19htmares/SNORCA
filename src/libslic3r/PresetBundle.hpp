@@ -34,6 +34,8 @@ struct ConnectMachineInfo
 {
     std::string filament_info {""};
     std::string filament_type {""};
+    std::string vendor {""};
+    std::string sub_type {""};
     std::string nozzle_info {""};
     std::string nozzle_volume_type {""};
     std::string color_info{""};

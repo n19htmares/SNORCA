@@ -255,6 +255,8 @@ bool GatewayDevice::parse_machine_slots(const nlohmann::json& result, std::vecto
         const std::string sub_type = array_string(sub_types ? *sub_types : nlohmann::json::array(), index, "NONE");
         slot.filament_info         = filament_exists ? machine_filament_display_name(vendor, type, sub_type) : "NONE";
         slot.filament_type = type;
+        slot.vendor        = vendor;
+        slot.sub_type      = sub_type;
         slot.nozzle_info   = index < nozzles.size() ? nozzles[index] : std::string{};
         if (slot.nozzle_info.empty())
             return false;
@@ -313,6 +315,7 @@ bool GatewayDevice::machine_slots_equal(const std::vector<ConnectMachineInfo>& l
         const ConnectMachineInfo& lhs = left[index];
         const ConnectMachineInfo& rhs = right[index];
         if (lhs.index != rhs.index || lhs.filament_info != rhs.filament_info || lhs.filament_type != rhs.filament_type ||
+            lhs.vendor != rhs.vendor || lhs.sub_type != rhs.sub_type ||
             lhs.nozzle_info != rhs.nozzle_info || lhs.nozzle_volume_type != rhs.nozzle_volume_type || lhs.color_info != rhs.color_info ||
             lhs.multiColors != rhs.multiColors || lhs.colorMode != rhs.colorMode)
             return false;
