@@ -1613,6 +1613,8 @@ void SSWCP_Instance::update_filament_info(const json& objects, bool send_message
                     std::string sub_type = j_value["filament_sub_type"][i].get<std::string>();
 
                     machineData.filament_type = type;
+                    machineData.vendor = vendor;
+                    machineData.sub_type = sub_type;
 
                     std::string name = "";
 
